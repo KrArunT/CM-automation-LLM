@@ -1,0 +1,31 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: MLPerf inference GPT-J
+
+on:
+  schedule:
+    - cron: "15 19 * * *"
+
+jobs:
+  build:
+    if: github.repository_owner == 'gateoverflow'
+    runs-on: [ self-hosted, linux, x64, GO-spr ]
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.12" ]
+        backend: [ "pytorch" ]
+        precision: [ "float16" ]
+
+    steps:
+    - name: Test MLPerf Inference GPTJ
+      run: |
+        source gh_action/bin/deactivate || python3 -m venv gh_action
+        source gh_action/bin/activate
+        export CM_REPOS=$HOME/GH_CM
+        python3 -m pip install cm4mlops
+        cm pull repo
+        cm run script --tags=run-mlperf,inference,_submission,_short --submitter="MLCommons" --docker --model=gptj-99 --backend=${{ matrix.backend }} --device=cuda --scenario=Offline --test_query_count=1 --precision=${{ matrix.precision }} --target_qps=1 --quiet --docker_it=no --docker_cm_repo=gateoverflow@cm4mlops --adr.compiler.tags=gcc --beam_size=1 --hw_name=gh_action --docker_dt=yes  --results_dir=$HOME/gh_action_results --submission_dir=$HOME/gh_action_submissions --get_platform_details=yes --implementation=reference --clean
+        cm run script --tags=push,github,mlperf,inference,submission --repo_url=https://github.com/gateoverflow/mlperf_inference_test_submissions_v5.0 --repo_branch=main --commit_message="Results from self hosted Github actions - NVIDIARTX4090" --quiet --submission_dir=$HOME/gh_action_submissions
+
